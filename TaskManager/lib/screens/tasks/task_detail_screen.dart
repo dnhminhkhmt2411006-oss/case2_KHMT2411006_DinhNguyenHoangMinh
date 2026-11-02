@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../models/task.dart';
+import '../../models/task_share.dart';
 import '../../services/task_service.dart';
+import '../../services/task_share_service.dart';
 import '../../utils/format.dart';
 import '../../widgets/task_card.dart';
+import '../assignment/assign_task_screen.dart';
+import '../sharing/task_sharing_screen.dart';
 import 'task_edit_screen.dart';
 
 class TaskDetailScreen extends StatefulWidget {
@@ -15,17 +19,21 @@ class TaskDetailScreen extends StatefulWidget {
 
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
   late Future<Task> _future;
+  late Future<List<TaskShare>> _sharesFuture;
 
   @override
   void initState() {
     super.initState();
+    _load();
+  }
+
+  void _load() {
     _future = TaskService.fetchTask(widget.taskId);
+    _sharesFuture = TaskShareService.list(widget.taskId);
   }
 
   void _reload() {
-    setState(() {
-      _future = TaskService.fetchTask(widget.taskId);
-    });
+    setState(_load);
   }
 
   void _toast(String msg) {
@@ -38,6 +46,30 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       MaterialPageRoute(builder: (_) => TaskEditScreen(task: t)),
     );
     if (changed == true && mounted) _reload();
+  }
+
+  Future<void> _openAssign(Task t) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AssignTaskScreen(taskId: t.id, taskTitle: t.title),
+      ),
+    );
+    if (mounted) _reload();
+  }
+
+  Future<void> _openSharing(Task t) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TaskSharingScreen(
+          taskId: t.id,
+          taskTitle: t.title,
+          ownerId: t.createdBy?.id,
+        ),
+      ),
+    );
+    if (mounted) _reload();
   }
 
   Future<void> _delete(Task t) async {
@@ -116,6 +148,63 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
+  Widget _sectionHeader(String title, {VoidCallback? onManage, String? label, IconData? icon}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+        if (onManage != null)
+          TextButton.icon(
+            onPressed: onManage,
+            icon: Icon(icon ?? Icons.edit_outlined, size: 18),
+            label: Text(label ?? 'Quản lý'),
+          ),
+      ],
+    );
+  }
+
+  Widget _sharesSection() {
+    return FutureBuilder<List<TaskShare>>(
+      future: _sharesFuture,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: LinearProgressIndicator(),
+          );
+        }
+        if (snap.hasError) {
+          return const Text('Không tải được danh sách chia sẻ');
+        }
+        final shares = snap.data ?? [];
+        if (shares.isEmpty) return const Text('Chưa chia sẻ cho ai');
+        return Column(
+          children: shares
+              .map(
+                (s) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                child: Text((s.user?.fullName ?? '?').isNotEmpty
+                    ? (s.user?.fullName ?? '?')[0].toUpperCase()
+                    : '?'),
+              ),
+              title: Text(s.user?.fullName ?? 'Người dùng đã bị xóa'),
+              subtitle: Text(s.user?.email ?? ''),
+              trailing: TagLabel(
+                text: permissionLabel(s.permission),
+                color: s.permission == 'editor'
+                    ? Colors.orange
+                    : Colors.blueGrey,
+              ),
+            ),
+          )
+              .toList(),
+        );
+      },
+    );
+  }
+
   Widget _body(AsyncSnapshot<Task> snap) {
     if (snap.connectionState != ConnectionState.done) {
       return const Center(child: CircularProgressIndicator());
@@ -130,6 +219,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
     final t = snap.data!;
     final canStatus = t.access?.canChangeStatus ?? false;
+    final canManage = t.access?.canManage ?? false;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -193,8 +284,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         const SizedBox(height: 8),
         Text(t.description.isEmpty ? 'Không có mô tả' : t.description),
         const Divider(height: 32),
-        Text('Người được giao',
-            style: Theme.of(context).textTheme.titleMedium),
+        _sectionHeader(
+          'Người được giao',
+          onManage: canManage ? () => _openAssign(t) : null,
+          label: 'Giao việc',
+          icon: Icons.group_add_outlined,
+        ),
         const SizedBox(height: 8),
         if (t.assignees.isEmpty) const Text('Chưa giao cho ai'),
         ...t.assignees.map(
@@ -211,6 +306,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 : null,
           ),
         ),
+        const Divider(height: 32),
+        _sectionHeader(
+          'Người được chia sẻ',
+          onManage: canManage ? () => _openSharing(t) : null,
+          label: 'Chia sẻ',
+          icon: Icons.share_outlined,
+        ),
+        const SizedBox(height: 8),
+        _sharesSection(),
       ],
     );
   }
