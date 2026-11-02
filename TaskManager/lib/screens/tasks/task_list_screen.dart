@@ -4,6 +4,7 @@ import '../../services/auth_service.dart';
 import '../../services/task_service.dart';
 import '../../widgets/task_card.dart';
 import '../auth/login_screen.dart';
+import 'task_create_screen.dart';
 import 'task_detail_screen.dart';
 
 Future<void> logoutAndGoToLogin(BuildContext context) async {
@@ -48,6 +49,14 @@ class TaskListScreen extends StatelessWidget {
             TaskTab(scope: 'shared'),
           ],
         ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TaskCreateScreen()),
+          ),
+          icon: const Icon(Icons.add),
+          label: const Text('Thêm việc'),
+        ),
       ),
     );
   }
@@ -68,6 +77,17 @@ class _TaskTabState extends State<TaskTab> {
   void initState() {
     super.initState();
     _future = TaskService.fetchTasks(scope: widget.scope);
+    taskRefresh.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    taskRefresh.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) _reload();
   }
 
   Future<void> _reload() async {
@@ -103,9 +123,8 @@ class _TaskTabState extends State<TaskTab> {
                   Text(err.toString(), textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   ElevatedButton(
-                    onPressed: expired
-                        ? () => logoutAndGoToLogin(context)
-                        : _reload,
+                    onPressed:
+                    expired ? () => logoutAndGoToLogin(context) : _reload,
                     child: Text(expired ? 'Đăng nhập lại' : 'Thử lại'),
                   ),
                 ],
@@ -124,7 +143,7 @@ class _TaskTabState extends State<TaskTab> {
             ],
           )
               : ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.fromLTRB(0, 8, 0, 88),
             itemCount: tasks.length,
             itemBuilder: (context, i) => TaskCard(
               task: tasks[i],

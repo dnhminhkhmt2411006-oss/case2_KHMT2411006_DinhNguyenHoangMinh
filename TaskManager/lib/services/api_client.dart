@@ -33,4 +33,15 @@ class ApiClient {
   static Future<http.Response> post(String path, Map<String, dynamic> body) async =>
       http.post(Uri.parse('$baseUrl$path'),
           headers: await _headers(), body: jsonEncode(body));
+
+  static Future<http.Response> put(String path, Map<String, dynamic> body) async =>
+      http.put(Uri.parse('$baseUrl$path'),
+          headers: await _headers(), body: jsonEncode(body));
+
+  static Future<http.Response> patch(String path, Map<String, dynamic> body) async =>
+      http.patch(Uri.parse('$baseUrl$path'),
+          headers: await _headers(), body: jsonEncode(body));
+
+  static Future<http.Response> delete(String path) async =>
+      http.delete(Uri.parse('$baseUrl$path'), headers: await _headers());
 }

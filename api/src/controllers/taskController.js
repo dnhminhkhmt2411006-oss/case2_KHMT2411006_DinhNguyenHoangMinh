@@ -1,11 +1,16 @@
 const Task = require('../models/Task');
 const TaskShare = require('../models/TaskShare');
+const {
+  validateTaskInput,
+  checkDateOrder,
+  STATUSES,
+} = require('../validators/taskValidator');
 
 exports.list = async (req, res) => {
   try {
     const uid = req.user._id;
     const { scope, status, priority, q } = req.query;
-    const sharedIds = (await TaskShare.find({ userId: uid })).map(s => s.taskId);
+    const sharedIds = (await TaskShare.find({ userId: uid })).map((s) => s.taskId);
 
     const access = {
       created: { createdBy: uid },
@@ -31,21 +36,54 @@ exports.list = async (req, res) => {
 };
 
 exports.detail = async (req, res) => {
-  try {
-    const task = await Task.findById(req.params.id)
-      .populate('createdBy', 'fullName email')
-      .populate('assigneeIds', 'fullName email');
-    if (!task) return res.status(404).json({ message: 'Không tìm thấy công việc' });
+  await req.task.populate([
+    { path: 'createdBy', select: 'fullName email' },
+    { path: 'assigneeIds', select: 'fullName email' },
+    { path: 'primaryAssigneeId', select: 'fullName email' },
+  ]);
+  res.json({ ...req.task.toObject(), myAccess: req.access });
+};
 
-    const uid = String(req.user._id);
-    const share = await TaskShare.findOne({ taskId: task._id, userId: uid });
-    const allowed = String(task.createdBy._id) === uid
-      || task.assigneeIds.some(u => String(u._id) === uid)
-      || share;
-    if (!allowed) return res.status(403).json({ message: 'Không có quyền truy cập' });
+exports.create = async (req, res) => {
+  const { error, data } = validateTaskInput(req.body, { requireTitle: true });
+  if (error) return res.status(400).json({ message: error });
+  const dateError = checkDateOrder(data.startDate, data.dueDate);
+  if (dateError) return res.status(400).json({ message: dateError });
 
-    res.json(task);
-  } catch (err) {
-    res.status(400).json({ message: 'ID không hợp lệ' });
+  const task = await Task.create({ ...data, createdBy: req.user._id });
+  res.status(201).json(task);
+};
+
+exports.update = async (req, res) => {
+  const { error, data } = validateTaskInput(req.body);
+  if (error) return res.status(400).json({ message: error });
+  if (!Object.keys(data).length) {
+    return res.status(400).json({ message: 'Không có dữ liệu để cập nhật' });
   }
+
+  const task = req.task;
+  const start = data.startDate !== undefined ? data.startDate : task.startDate;
+  const due = data.dueDate !== undefined ? data.dueDate : task.dueDate;
+  const dateError = checkDateOrder(start, due);
+  if (dateError) return res.status(400).json({ message: dateError });
+
+  task.set(data);
+  await task.save();
+  res.json(task);
+};
+
+exports.updateStatus = async (req, res) => {
+  const status = (req.body || {}).status;
+  if (!STATUSES.includes(status)) {
+    return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
+  }
+  req.task.status = status;
+  await req.task.save();
+  res.json({ id: req.task._id, status: req.task.status });
+};
+
+exports.remove = async (req, res) => {
+  await TaskShare.deleteMany({ taskId: req.task._id });
+  await req.task.deleteOne();
+  res.json({ message: 'Đã xóa công việc' });
 };
