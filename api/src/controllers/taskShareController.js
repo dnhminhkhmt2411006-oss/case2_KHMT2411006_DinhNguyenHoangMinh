@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
 const TaskShare = require('../models/TaskShare');
 const resolveUsers = require('../utils/resolveUsers');
+const { notifyUsers } = require('../services/notificationService');
 
 const PERMISSIONS = ['viewer', 'editor'];
+const permText = (p) => (p === 'editor' ? 'được chỉnh sửa' : 'chỉ xem');
 
 async function respond(taskId, res) {
   const shares = await TaskShare.find({ taskId })
@@ -47,6 +49,13 @@ exports.add = async (req, res) => {
       .json({ message: 'Không thể chia sẻ cho chính người tạo công việc' });
   }
 
+  const existing = await TaskShare.find({
+    taskId: req.task._id,
+    userId: { $in: targets.map((u) => u._id) },
+  });
+  const oldPerm = new Map(existing.map((s) => [String(s.userId), s.permission]));
+  const changed = targets.filter((u) => oldPerm.get(String(u._id)) !== permission);
+
   await Promise.all(
     targets.map((u) =>
       TaskShare.findOneAndUpdate(
@@ -56,6 +65,15 @@ exports.add = async (req, res) => {
       )
     )
   );
+
+  await notifyUsers({
+    userIds: changed.map((u) => u._id),
+    actor: req.user,
+    task: req.task,
+    type: 'task_shared',
+    title: 'Công việc được chia sẻ với bạn',
+    message: `${req.user.fullName} đã chia sẻ công việc "${req.task.title}" với bạn (${permText(permission)})`,
+  });
   await respond(req.task._id, res);
 };
 
@@ -70,8 +88,20 @@ exports.updatePermission = async (req, res) => {
   }
   const share = await TaskShare.findOne({ _id: shareId, taskId: req.task._id });
   if (!share) return res.status(404).json({ message: 'Không tìm thấy bản ghi chia sẻ' });
+
+  const changed = share.permission !== permission;
   share.permission = permission;
   await share.save();
+  if (changed) {
+    await notifyUsers({
+      userIds: [share.userId],
+      actor: req.user,
+      task: req.task,
+      type: 'share_updated',
+      title: 'Quyền truy cập được thay đổi',
+      message: `${req.user.fullName} đã đổi quyền của bạn trên "${req.task.title}" (${permText(permission)})`,
+    });
+  }
   await respond(req.task._id, res);
 };
 
@@ -85,5 +115,14 @@ exports.revoke = async (req, res) => {
     taskId: req.task._id,
   });
   if (!share) return res.status(404).json({ message: 'Không tìm thấy bản ghi chia sẻ' });
+
+  await notifyUsers({
+    userIds: [share.userId],
+    actor: req.user,
+    task: req.task,
+    type: 'share_revoked',
+    title: 'Quyền chia sẻ bị thu hồi',
+    message: `${req.user.fullName} đã thu hồi quyền chia sẻ công việc "${req.task.title}" với bạn`,
+  });
   await respond(req.task._id, res);
 };

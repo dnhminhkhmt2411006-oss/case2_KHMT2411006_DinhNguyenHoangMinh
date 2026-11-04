@@ -1,14 +1,18 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/task.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/task_service.dart';
 import '../../widgets/task_card.dart';
 import '../auth/login_screen.dart';
+import '../notifications/notification_screen.dart';
 import 'task_create_screen.dart';
 import 'task_detail_screen.dart';
 
 Future<void> logoutAndGoToLogin(BuildContext context) async {
   await AuthService.logout();
+  unreadCount.value = 0;
   if (!context.mounted) return;
   Navigator.pushAndRemoveUntil(
     context,
@@ -17,8 +21,39 @@ Future<void> logoutAndGoToLogin(BuildContext context) async {
   );
 }
 
-class TaskListScreen extends StatelessWidget {
+class TaskListScreen extends StatefulWidget {
   const TaskListScreen({super.key});
+
+  @override
+  State<TaskListScreen> createState() => _TaskListScreenState();
+}
+
+class _TaskListScreenState extends State<TaskListScreen> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    NotificationService.refreshUnread();
+    _timer = Timer.periodic(
+      const Duration(seconds: 30),
+          (_) => NotificationService.refreshUnread(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const NotificationScreen()),
+    );
+    NotificationService.refreshUnread();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +63,18 @@ class TaskListScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Công việc'),
           actions: [
+            ValueListenableBuilder<int>(
+              valueListenable: unreadCount,
+              builder: (context, count, _) => IconButton(
+                tooltip: 'Thông báo',
+                onPressed: _openNotifications,
+                icon: Badge(
+                  isLabelVisible: count > 0,
+                  label: Text(count > 99 ? '99+' : '$count'),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+              ),
+            ),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Đăng xuất',
