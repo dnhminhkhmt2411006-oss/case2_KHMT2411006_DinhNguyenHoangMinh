@@ -1,4 +1,5 @@
 const resolveUsers = require('../utils/resolveUsers');
+const { notifyUsers } = require('../services/notificationService');
 
 async function respond(task, res) {
   await task.populate('assigneeIds', 'fullName email');
@@ -30,8 +31,12 @@ exports.add = async (req, res) => {
 
   const task = req.task;
   const current = new Set(task.assigneeIds.map(String));
+  const added = [];
   users.forEach((u) => {
-    if (!current.has(String(u._id))) task.assigneeIds.push(u._id);
+    if (!current.has(String(u._id))) {
+      task.assigneeIds.push(u._id);
+      added.push(u._id);
+    }
   });
 
   if (body.primaryUserId) {
@@ -47,6 +52,14 @@ exports.add = async (req, res) => {
   }
 
   await task.save();
+  await notifyUsers({
+    userIds: added,
+    actor: req.user,
+    task,
+    type: 'task_assigned',
+    title: 'Bạn được giao việc mới',
+    message: `${req.user.fullName} đã giao cho bạn công việc "${task.title}"`,
+  });
   await respond(task, res);
 };
 

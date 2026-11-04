@@ -1,10 +1,55 @@
 const Task = require('../models/Task');
 const TaskShare = require('../models/TaskShare');
+const Notification = require('../models/Notification');
 const {
   validateTaskInput,
   checkDateOrder,
   STATUSES,
 } = require('../validators/taskValidator');
+const { notifyUsers, involvedUserIds } = require('../services/notificationService');
+
+const STATUS_TEXT = {
+  todo: 'Cần làm',
+  in_progress: 'Đang làm',
+  completed: 'Hoàn thành',
+};
+
+function fmtDate(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+async function notifyInvolved(req, type, title, message) {
+  const ids = await involvedUserIds(req.task);
+  await notifyUsers({
+    userIds: ids,
+    actor: req.user,
+    task: req.task,
+    type,
+    title,
+    message,
+  });
+}
+
+async function notifyStatusChange(req) {
+  const who = req.user.fullName;
+  const task = req.task;
+  if (task.status === 'completed') {
+    await notifyInvolved(
+      req,
+      'status_changed',
+      'Công việc đã hoàn thành',
+      `${who} đã hoàn thành công việc "${task.title}"`
+    );
+  } else {
+    await notifyInvolved(
+      req,
+      'status_changed',
+      'Trạng thái công việc thay đổi',
+      `${who} đã chuyển "${task.title}" sang "${STATUS_TEXT[task.status]}"`
+    );
+  }
+}
 
 exports.list = async (req, res) => {
   try {
@@ -67,8 +112,24 @@ exports.update = async (req, res) => {
   const dateError = checkDateOrder(start, due);
   if (dateError) return res.status(400).json({ message: dateError });
 
+  const oldStatus = task.status;
+  const oldDue = task.dueDate ? task.dueDate.getTime() : null;
+
   task.set(data);
   await task.save();
+
+  if (task.status !== oldStatus) await notifyStatusChange(req);
+
+  const newDue = task.dueDate ? task.dueDate.getTime() : null;
+  if (newDue !== oldDue) {
+    const dueText = task.dueDate ? fmtDate(task.dueDate) : 'không còn hạn';
+    await notifyInvolved(
+      req,
+      'due_changed',
+      'Hạn hoàn thành thay đổi',
+      `${req.user.fullName} đã đổi hạn hoàn thành của "${task.title}" (${dueText})`
+    );
+  }
   res.json(task);
 };
 
@@ -77,13 +138,16 @@ exports.updateStatus = async (req, res) => {
   if (!STATUSES.includes(status)) {
     return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
   }
+  const oldStatus = req.task.status;
   req.task.status = status;
   await req.task.save();
+  if (status !== oldStatus) await notifyStatusChange(req);
   res.json({ id: req.task._id, status: req.task.status });
 };
 
 exports.remove = async (req, res) => {
   await TaskShare.deleteMany({ taskId: req.task._id });
+  await Notification.deleteMany({ taskId: req.task._id });
   await req.task.deleteOne();
   res.json({ message: 'Đã xóa công việc' });
 };
