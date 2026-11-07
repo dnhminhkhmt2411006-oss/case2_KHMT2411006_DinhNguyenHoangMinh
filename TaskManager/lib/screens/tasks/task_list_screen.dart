@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/task.dart';
+import '../../models/task_filter.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/task_service.dart';
+import '../../utils/format.dart';
 import '../../widgets/task_card.dart';
+import '../../widgets/task_filter_sheet.dart';
 import '../auth/login_screen.dart';
 import '../notifications/notification_screen.dart';
+import '../profile/profile_screen.dart';
 import 'task_create_screen.dart';
 import 'task_detail_screen.dart';
 
@@ -30,6 +34,10 @@ class TaskListScreen extends StatefulWidget {
 
 class _TaskListScreenState extends State<TaskListScreen> {
   Timer? _timer;
+  Timer? _debounce;
+  final _searchCtl = TextEditingController();
+  TaskFilter _filter = const TaskFilter();
+  bool _searching = false;
 
   @override
   void initState() {
@@ -44,7 +52,30 @@ class _TaskListScreenState extends State<TaskListScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _debounce?.cancel();
+    _searchCtl.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String text) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) setState(() => _filter = _filter.withQuery(text.trim()));
+    });
+  }
+
+  void _closeSearch() {
+    _debounce?.cancel();
+    _searchCtl.clear();
+    setState(() {
+      _searching = false;
+      _filter = _filter.withQuery('');
+    });
+  }
+
+  Future<void> _openFilter() async {
+    final result = await showTaskFilterSheet(context, _filter);
+    if (result != null && mounted) setState(() => _filter = result);
   }
 
   Future<void> _openNotifications() async {
@@ -55,14 +86,85 @@ class _TaskListScreenState extends State<TaskListScreen> {
     NotificationService.refreshUnread();
   }
 
+  Future<void> _openProfile() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+    );
+    notifyTasksChanged();
+  }
+
+  Widget _activeFilters() {
+    final chips = <Widget>[
+      if (_filter.status != null)
+        InputChip(
+          label: Text(statusLabel(_filter.status!)),
+          onDeleted: () => setState(() => _filter = _filter.withoutStatus()),
+        ),
+      if (_filter.priority != null)
+        InputChip(
+          label: Text(priorityLabel(_filter.priority!)),
+          onDeleted: () => setState(() => _filter = _filter.withoutPriority()),
+        ),
+      if (_filter.assignee != null)
+        InputChip(
+          label: Text('Phụ trách: ${_filter.assignee!.fullName}'),
+          onDeleted: () => setState(() => _filter = _filter.withoutAssignee()),
+        ),
+    ];
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        child: Wrap(spacing: 8, runSpacing: 4, children: chips),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filterOn = _filter.status != null ||
+        _filter.priority != null ||
+        _filter.assignee != null ||
+        _filter.isCustomSort;
+
     return DefaultTabController(
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Công việc'),
+          title: _searching
+              ? TextField(
+            controller: _searchCtl,
+            autofocus: true,
+            onChanged: _onSearchChanged,
+            decoration: const InputDecoration(
+              hintText: 'Tìm theo tên công việc',
+              border: InputBorder.none,
+            ),
+          )
+              : const Text('Công việc'),
           actions: [
+            if (_searching)
+              IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Đóng tìm kiếm',
+                onPressed: _closeSearch,
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: 'Tìm kiếm',
+                onPressed: () => setState(() => _searching = true),
+              ),
+            IconButton(
+              tooltip: 'Lọc và sắp xếp',
+              onPressed: _openFilter,
+              icon: Badge(
+                isLabelVisible: filterOn,
+                child: const Icon(Icons.filter_list),
+              ),
+            ),
             ValueListenableBuilder<int>(
               valueListenable: unreadCount,
               builder: (context, count, _) => IconButton(
@@ -76,9 +178,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Đăng xuất',
-              onPressed: () => logoutAndGoToLogin(context),
+              icon: const Icon(Icons.account_circle_outlined),
+              tooltip: 'Cá nhân và thống kê',
+              onPressed: _openProfile,
             ),
           ],
           bottom: const TabBar(
@@ -89,11 +191,18 @@ class _TaskListScreenState extends State<TaskListScreen> {
             ],
           ),
         ),
-        body: const TabBarView(
+        body: Column(
           children: [
-            TaskTab(scope: 'created'),
-            TaskTab(scope: 'assigned'),
-            TaskTab(scope: 'shared'),
+            _activeFilters(),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  TaskTab(scope: 'created', filter: _filter),
+                  TaskTab(scope: 'assigned', filter: _filter),
+                  TaskTab(scope: 'shared', filter: _filter),
+                ],
+              ),
+            ),
           ],
         ),
         floatingActionButton: FloatingActionButton.extended(
@@ -111,7 +220,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
 class TaskTab extends StatefulWidget {
   final String scope;
-  const TaskTab({super.key, required this.scope});
+  final TaskFilter filter;
+  const TaskTab({super.key, required this.scope, required this.filter});
 
   @override
   State<TaskTab> createState() => _TaskTabState();
@@ -120,11 +230,20 @@ class TaskTab extends StatefulWidget {
 class _TaskTabState extends State<TaskTab> {
   late Future<List<Task>> _future;
 
+  Future<List<Task>> _fetch() =>
+      TaskService.fetchTasks(scope: widget.scope, filter: widget.filter);
+
   @override
   void initState() {
     super.initState();
-    _future = TaskService.fetchTasks(scope: widget.scope);
+    _future = _fetch();
     taskRefresh.addListener(_onChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant TaskTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.filter != widget.filter) _future = _fetch();
   }
 
   @override
@@ -138,7 +257,7 @@ class _TaskTabState extends State<TaskTab> {
   }
 
   Future<void> _reload() async {
-    final f = TaskService.fetchTasks(scope: widget.scope);
+    final f = _fetch();
     setState(() {
       _future = f;
     });
@@ -184,9 +303,13 @@ class _TaskTabState extends State<TaskTab> {
           onRefresh: _reload,
           child: tasks.isEmpty
               ? ListView(
-            children: const [
-              SizedBox(height: 200),
-              Center(child: Text('Chưa có công việc nào')),
+            children: [
+              const SizedBox(height: 200),
+              Center(
+                child: Text(widget.filter.isActive
+                    ? 'Không có công việc phù hợp với bộ lọc'
+                    : 'Chưa có công việc nào'),
+              ),
             ],
           )
               : ListView.builder(

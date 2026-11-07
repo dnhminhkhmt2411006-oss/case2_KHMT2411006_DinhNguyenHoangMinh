@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/task.dart';
+import '../models/task_filter.dart';
 import 'api_client.dart';
 
 // Tăng giá trị này để các danh sách tự tải lại sau khi thêm, sửa, xóa
@@ -35,9 +36,12 @@ class TaskService {
       ? (data['message'] ?? 'Có lỗi xảy ra').toString()
       : 'Có lỗi xảy ra';
 
-  static Future<List<Task>> fetchTasks({String? scope}) async {
-    final path = scope == null ? '/tasks' : '/tasks?scope=$scope';
-    final body = await _call(() => ApiClient.get(path));
+  static Future<List<Task>> fetchTasks({
+    String? scope,
+    TaskFilter filter = const TaskFilter(),
+  }) async {
+    final query = Uri(queryParameters: filter.toQueryParams(scope)).query;
+    final body = await _call(() => ApiClient.get('/tasks?$query'));
     return (body as List)
         .map((e) => Task.fromJson(e as Map<String, dynamic>))
         .toList();
