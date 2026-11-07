@@ -57,6 +57,7 @@ exports.add = async (req, res) => {
     actor: req.user,
     task,
     type: 'task_assigned',
+    emailType: 'task_assigned',
     title: 'Bạn được giao việc mới',
     message: `${req.user.fullName} đã giao cho bạn công việc "${task.title}"`,
   });
