@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../utils/format.dart';
+import 'task_card.dart' show TagLabel;
 
 class TaskForm extends StatefulWidget {
   final Task? initial;
@@ -90,21 +91,42 @@ class _TaskFormState extends State<TaskForm> {
     if (!mounted) return;
     setState(() => _saving = false);
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
   }
 
-  Widget _dateField(String label, DateTime? value, bool isStart) {
+  Widget _dateField(ThemeData theme, String label, DateTime? value, bool isStart) {
     return InkWell(
+      borderRadius: BorderRadius.circular(16),
       onTap: () => _pickDate(isStart),
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
+          prefixIcon: Icon(
+            isStart ? Icons.play_circle_outline_rounded : Icons.event_rounded,
+            color: theme.colorScheme.primary,
+          ),
+          filled: true,
+          fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+          ),
           suffixIcon: value == null
-              ? const Icon(Icons.calendar_today)
+              ? const Icon(Icons.calendar_today_rounded, size: 20)
               : IconButton(
-            icon: const Icon(Icons.clear),
+            icon: const Icon(Icons.clear_rounded, size: 20),
             onPressed: () => setState(() {
               if (isStart) {
                 _start = null;
@@ -114,86 +136,198 @@ class _TaskFormState extends State<TaskForm> {
             }),
           ),
         ),
-        child: Text(value == null ? 'Chưa đặt' : formatDate(value)),
+        child: Text(
+          value == null ? 'Chưa đặt ngày' : formatDate(value),
+          style: TextStyle(
+            color: value == null
+                ? theme.colorScheme.onSurfaceVariant
+                : theme.colorScheme.onSurface,
+            fontWeight: value == null ? FontWeight.normal : FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Form(
         key: _formKey,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // --- Tên công việc ---
             TextFormField(
               controller: _title,
-              decoration: const InputDecoration(
-                  labelText: 'Tên công việc *', border: OutlineInputBorder()),
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                labelText: 'Tên công việc *',
+                hintText: 'Ví dụ: Báo cáo doanh thu tháng',
+                prefixIcon: const Icon(Icons.title_rounded),
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: theme.colorScheme.error),
+                ),
+              ),
               validator: (v) =>
-              (v == null || v.trim().isEmpty) ? 'Nhập tên công việc' : null,
+              (v == null || v.trim().isEmpty) ? 'Vui lòng nhập tên công việc' : null,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
+
+            // --- Mô tả công việc ---
             TextFormField(
               controller: _desc,
               maxLines: 4,
-              decoration: const InputDecoration(
-                  labelText: 'Mô tả',
-                  alignLabelWithHint: true,
-                  border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 16),
-            _dateField('Ngày bắt đầu', _start, true),
-            const SizedBox(height: 16),
-            _dateField('Hạn hoàn thành', _due, false),
-            if (_dateError != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(_dateError!,
-                      style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                          fontSize: 12)),
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                labelText: 'Mô tả chi tiết',
+                hintText: 'Thêm ghi chú hoặc thông tin bổ sung...',
+                alignLabelWithHint: true,
+                prefixIcon: const Padding(
+                  padding: EdgeInsets.only(bottom: 60),
+                  child: Icon(Icons.description_outlined),
+                ),
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
                 ),
               ),
-            const SizedBox(height: 16),
+            ),
+            const SizedBox(height: 18),
+
+            // --- Ngày bắt đầu & Ngày hạn ---
+            _dateField(theme, 'Ngày bắt đầu', _start, true),
+            const SizedBox(height: 18),
+            _dateField(theme, 'Hạn hoàn thành', _due, false),
+            if (_dateError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, left: 4),
+                child: Text(
+                  _dateError!,
+                  style: TextStyle(
+                    color: theme.colorScheme.error,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 18),
+
+            // --- Mức ưu tiên ---
             DropdownButtonFormField<String>(
               initialValue: _priority,
-              decoration: const InputDecoration(
-                  labelText: 'Mức ưu tiên', border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: 'Mức ưu tiên',
+                prefixIcon: const Icon(Icons.flag_outlined),
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+                ),
+              ),
               items: ['low', 'medium', 'high']
-                  .map((p) =>
-                  DropdownMenuItem(value: p, child: Text(priorityLabel(p))))
+                  .map((p) => DropdownMenuItem(
+                value: p,
+                child: Row(
+                  children: [
+                    TagLabel(text: priorityLabel(p), color: priorityColor(p)),
+                  ],
+                ),
+              ))
                   .toList(),
               onChanged: (v) => setState(() => _priority = v ?? _priority),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
+
+            // --- Trạng thái ---
             DropdownButtonFormField<String>(
               initialValue: _status,
-              decoration: const InputDecoration(
-                  labelText: 'Trạng thái', border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                labelText: 'Trạng thái',
+                prefixIcon: const Icon(Icons.label_outlined),
+                filled: true,
+                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+                ),
+              ),
               items: ['todo', 'in_progress', 'completed']
-                  .map((s) =>
-                  DropdownMenuItem(value: s, child: Text(statusLabel(s))))
+                  .map((s) => DropdownMenuItem(
+                value: s,
+                child: Row(
+                  children: [
+                    TagLabel(text: statusLabel(s), color: statusColor(s)),
+                  ],
+                ),
+              ))
                   .toList(),
               onChanged: (v) => setState(() => _status = v ?? _status),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
+
+            // --- Button Submit ---
             SizedBox(
-              width: double.infinity,
-              height: 48,
+              height: 54,
               child: ElevatedButton(
                 onPressed: _saving ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
                 child: _saving
-                    ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(widget.submitLabel),
+                    ? SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: theme.colorScheme.onPrimary,
+                  ),
+                )
+                    : Text(
+                  widget.submitLabel,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
+            const SizedBox(height: 16),
           ],
         ),
       ),

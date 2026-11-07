@@ -59,7 +59,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -107,13 +113,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Cá nhân và thống kê')),
-      body: _buildBody(),
+      backgroundColor: theme.colorScheme.surface,
+      appBar: AppBar(
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Cá nhân và thống kê',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: _buildBody(theme),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(ThemeData theme) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
@@ -122,9 +144,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error!, textAlign: TextAlign.center),
+              Icon(Icons.error_outline_rounded, size: 48, color: theme.colorScheme.error),
               const SizedBox(height: 12),
-              ElevatedButton(onPressed: _load, child: const Text('Thử lại')),
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton.tonal(onPressed: _load, child: const Text('Thử lại')),
             ],
           ),
         ),
@@ -135,69 +159,123 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return RefreshIndicator(
       onRefresh: () => _load(spinner: false),
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(18),
         children: [
-          _profileCard(user),
-          const SizedBox(height: 20),
-          _title('Thống kê theo trạng thái'),
-          _statusCard(s.tasks),
-          const SizedBox(height: 20),
-          _title('Việc được giao và phụ trách'),
-          _assignmentCard(s.assignments),
-          const SizedBox(height: 20),
-          _title('Hạn hoàn thành'),
-          _deadlineCards(s.deadlines),
-          _deadlineList('Đã quá hạn', s.deadlines.overdue, Colors.red),
-          _deadlineList('Sắp đến hạn (${s.deadlines.days} ngày tới)',
-              s.deadlines.dueSoon, Colors.orange),
+          _profileCard(theme, user),
           const SizedBox(height: 24),
+          _title(theme, 'Thống kê theo trạng thái'),
+          _statusCard(theme, s.tasks),
+          const SizedBox(height: 24),
+          _title(theme, 'Việc được giao và phụ trách'),
+          _assignmentCard(theme, s.assignments),
+          const SizedBox(height: 24),
+          _title(theme, 'Hạn hoàn thành'),
+          _deadlineCards(theme, s.deadlines),
+          _deadlineList(theme, 'Đã quá hạn', s.deadlines.overdue, Colors.redAccent),
+          _deadlineList(
+            theme,
+            'Sắp đến hạn (${s.deadlines.days} ngày tới)',
+            s.deadlines.dueSoon,
+            Colors.orange,
+          ),
+          const SizedBox(height: 32),
           SizedBox(
-            height: 48,
+            height: 52,
             child: OutlinedButton.icon(
               onPressed: _logout,
-              icon: const Icon(Icons.logout),
-              label: const Text('Đăng xuất'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: theme.colorScheme.error,
+                side: BorderSide(color: theme.colorScheme.error.withOpacity(0.5)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text(
+                'Đăng xuất',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
             ),
           ),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
 
-  Widget _title(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+  Widget _title(ThemeData theme, String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 10, left: 4),
+    child: Text(
+      text,
+      style: theme.textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.bold,
+        color: theme.colorScheme.onSurface,
+      ),
+    ),
   );
 
-  Widget _profileCard(AppUser user) {
+  Widget _profileCard(ThemeData theme, AppUser user) {
     return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             CircleAvatar(
-              radius: 36,
+              radius: 40,
+              backgroundColor: theme.colorScheme.primaryContainer,
               child: Text(
                 user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?',
-                style: const TextStyle(fontSize: 28),
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
               ),
             ),
             const SizedBox(height: 12),
-            Text(user.fullName,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            Text(user.email, style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
+            Text(
+              user.fullName,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              user.email,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 OutlinedButton.icon(
                   onPressed: _editName,
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   label: const Text('Đổi tên'),
                 ),
+                const SizedBox(width: 10),
                 OutlinedButton.icon(
                   onPressed: _changePassword,
-                  icon: const Icon(Icons.lock_outline, size: 18),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.lock_outline_rounded, size: 18),
                   label: const Text('Đổi mật khẩu'),
                 ),
               ],
@@ -208,105 +286,199 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _statusCard(StatusCounts c) {
+  Widget _statusCard(ThemeData theme, StatusCounts c) {
     return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Expanded(child: Text('Tổng số công việc')),
-                Text('${c.total}',
-                    style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.bold)),
+                Text(
+                  'Tổng số công việc',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${c.total}',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
               ],
+            ),
+            const Divider(height: 24, thickness: 0.5),
+            _StatBar(
+              label: 'Cần làm',
+              value: c.todo,
+              total: c.total,
+              color: statusColor('todo'),
             ),
             const SizedBox(height: 12),
             _StatBar(
-                label: 'Cần làm',
-                value: c.todo,
-                total: c.total,
-                color: statusColor('todo')),
-            const SizedBox(height: 10),
+              label: 'Đang làm',
+              value: c.inProgress,
+              total: c.total,
+              color: statusColor('in_progress'),
+            ),
+            const SizedBox(height: 12),
             _StatBar(
-                label: 'Đang làm',
-                value: c.inProgress,
-                total: c.total,
-                color: statusColor('in_progress')),
-            const SizedBox(height: 10),
-            _StatBar(
-                label: 'Hoàn thành',
-                value: c.completed,
-                total: c.total,
-                color: statusColor('completed')),
+              label: 'Hoàn thành',
+              value: c.completed,
+              total: c.total,
+              color: statusColor('completed'),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _assignmentCard(AssignmentStats a) {
-    Widget row(String label, String value) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+  Widget _assignmentCard(ThemeData theme, AssignmentStats a) {
+    Widget row(String label, String value, {bool isSub = false, bool isBold = false}) => Padding(
+      padding: EdgeInsets.symmetric(vertical: 4, horizontal: isSub ? 12 : 0),
       child: Row(
         children: [
-          Expanded(child: Text(label)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSub ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.onSurface,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                fontSize: isSub ? 13 : 14,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isBold ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+            ),
+          ),
         ],
       ),
     );
+
     return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           children: [
-            row('Được giao cho tôi', '${a.assignedToMe.total}'),
-            row('   đang làm', '${a.assignedToMe.inProgress}'),
-            row('   hoàn thành', '${a.assignedToMe.completed}'),
-            const Divider(),
-            row('Tôi phụ trách chính', '${a.primaryForMe.total}'),
-            const Divider(),
-            row('Tôi tạo', '${a.createdByMe.total}'),
-            row('   đã giao cho người khác', '${a.assignedByMe}'),
+            row('Được giao cho tôi', '${a.assignedToMe.total}', isBold: true),
+            row('Đang làm', '${a.assignedToMe.inProgress}', isSub: true),
+            row('Hoàn thành', '${a.assignedToMe.completed}', isSub: true),
+            const Divider(height: 20, thickness: 0.5),
+            row('Tôi phụ trách chính', '${a.primaryForMe.total}', isBold: true),
+            const Divider(height: 20, thickness: 0.5),
+            row('Tôi tạo', '${a.createdByMe.total}', isBold: true),
+            row('Đã giao cho người khác', '${a.assignedByMe}', isSub: true),
           ],
         ),
       ),
     );
   }
 
-  Widget _deadlineCards(DeadlineStats d) {
+  Widget _deadlineCards(ThemeData theme, DeadlineStats d) {
     return Row(
       children: [
-        Expanded(child: _MiniStat(label: 'Quá hạn', value: d.overdueCount, color: Colors.red)),
+        Expanded(
+          child: _MiniStat(
+            label: 'Quá hạn',
+            value: d.overdueCount,
+            color: Colors.redAccent,
+          ),
+        ),
         const SizedBox(width: 8),
-        Expanded(child: _MiniStat(label: 'Hôm nay', value: d.dueTodayCount, color: Colors.deepOrange)),
+        Expanded(
+          child: _MiniStat(
+            label: 'Hôm nay',
+            value: d.dueTodayCount,
+            color: Colors.deepOrangeAccent,
+          ),
+        ),
         const SizedBox(width: 8),
-        Expanded(child: _MiniStat(label: 'Sắp đến hạn', value: d.dueSoonCount, color: Colors.orange)),
+        Expanded(
+          child: _MiniStat(
+            label: 'Sắp tới',
+            value: d.dueSoonCount,
+            color: Colors.orange,
+          ),
+        ),
         const SizedBox(width: 8),
-        Expanded(child: _MiniStat(label: 'Chưa có hạn', value: d.noDueDateCount, color: Colors.blueGrey)),
+        Expanded(
+          child: _MiniStat(
+            label: 'Chưa hạn',
+            value: d.noDueDateCount,
+            color: Colors.blueGrey,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _deadlineList(String title, List<DeadlineItem> items, Color color) {
+  Widget _deadlineList(ThemeData theme, String title, List<DeadlineItem> items, Color color) {
     if (items.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.only(top: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 15),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           ...items.map(
-                (it) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              leading: Icon(Icons.event, color: color),
-              title: Text(it.title, overflow: TextOverflow.ellipsis),
-              subtitle: Text('Hạn: ${formatDate(it.dueDate)}'),
-              trailing: TagLabel(
-                  text: statusLabel(it.status), color: statusColor(it.status)),
-              onTap: () => _openTask(it.id),
+                (it) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.event_rounded, color: color, size: 20),
+                title: Text(
+                  it.title,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text('Hạn: ${formatDate(it.dueDate)}'),
+                trailing: TagLabel(
+                  text: statusLabel(it.status),
+                  color: statusColor(it.status),
+                ),
+                onTap: () => _openTask(it.id),
+              ),
             ),
           ),
         ],
@@ -329,23 +501,25 @@ class _StatBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(child: Text(label)),
-            Text('$value'),
+            Text(label, style: const TextStyle(fontSize: 13)),
+            Text('$value', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(6),
           child: LinearProgressIndicator(
             value: total == 0 ? 0 : value / total,
             minHeight: 8,
             color: color,
-            backgroundColor: color.withValues(alpha: 0.15),
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
           ),
         ),
       ],
@@ -361,18 +535,35 @@ class _MiniStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         child: Column(
           children: [
-            Text('$value',
-                style: TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+            Text(
+              '$value',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11)),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 11,
+              ),
+            ),
           ],
         ),
       ),
@@ -399,20 +590,34 @@ class _NameDialogState extends State<_NameDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       title: const Text('Đổi tên hiển thị'),
       content: TextField(
         controller: _ctl,
         autofocus: true,
-        decoration: const InputDecoration(
-            labelText: 'Họ tên', border: OutlineInputBorder()),
+        textCapitalization: TextCapitalization.words,
+        decoration: InputDecoration(
+          labelText: 'Họ tên',
+          prefixIcon: const Icon(Icons.person_outline_rounded),
+          filled: true,
+          fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+        ),
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Hủy'),
+        ),
         FilledButton(
-            onPressed: () => Navigator.pop(context, _ctl.text.trim()),
-            child: const Text('Lưu')),
+          onPressed: () => Navigator.pop(context, _ctl.text.trim()),
+          child: const Text('Lưu'),
+        ),
       ],
     );
   }
@@ -470,47 +675,61 @@ class _PasswordDialogState extends State<_PasswordDialog> {
     }
   }
 
-  Widget _field(TextEditingController c, String label) => Padding(
+  Widget _field(ThemeData theme, TextEditingController c, String label) => Padding(
     padding: const EdgeInsets.only(top: 12),
     child: TextField(
       controller: c,
       obscureText: true,
       decoration: InputDecoration(
-          labelText: label, border: const OutlineInputBorder()),
+        labelText: label,
+        prefixIcon: const Icon(Icons.lock_outline_rounded),
+        filled: true,
+        fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+      ),
     ),
   );
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       title: const Text('Đổi mật khẩu'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _field(_current, 'Mật khẩu hiện tại'),
-            _field(_new, 'Mật khẩu mới'),
-            _field(_confirm, 'Xác nhận mật khẩu mới'),
+            _field(theme, _current, 'Mật khẩu hiện tại'),
+            _field(theme, _new, 'Mật khẩu mới'),
+            _field(theme, _confirm, 'Xác nhận mật khẩu mới'),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: Text(_error!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+                ),
               ),
           ],
         ),
       ),
       actions: [
         TextButton(
-            onPressed: _busy ? null : () => Navigator.pop(context),
-            child: const Text('Hủy')),
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Hủy'),
+        ),
         FilledButton(
           onPressed: _busy ? null : _submit,
           child: _busy
               ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2))
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
               : const Text('Đổi mật khẩu'),
         ),
       ],

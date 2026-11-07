@@ -49,7 +49,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   Future<void> _markAll() async {
@@ -92,19 +98,38 @@ class _NotificationScreenState extends State<NotificationScreen> {
   IconData _icon(String type) {
     switch (type) {
       case 'task_assigned':
-        return Icons.assignment_ind_outlined;
+        return Icons.assignment_ind_rounded;
       case 'task_shared':
-        return Icons.share_outlined;
+        return Icons.share_rounded;
       case 'share_updated':
-        return Icons.manage_accounts_outlined;
+        return Icons.manage_accounts_rounded;
       case 'share_revoked':
-        return Icons.block;
+        return Icons.block_rounded;
       case 'status_changed':
-        return Icons.autorenew;
+        return Icons.published_with_changes_rounded;
       case 'due_changed':
-        return Icons.event_outlined;
+        return Icons.event_repeat_rounded;
       default:
-        return Icons.notifications_outlined;
+        return Icons.notifications_rounded;
+    }
+  }
+
+  Color _iconColor(ThemeData theme, String type) {
+    switch (type) {
+      case 'task_assigned':
+        return Colors.blue;
+      case 'task_shared':
+        return Colors.teal;
+      case 'share_updated':
+        return Colors.amber.shade800;
+      case 'share_revoked':
+        return theme.colorScheme.error;
+      case 'status_changed':
+        return Colors.purple;
+      case 'due_changed':
+        return Colors.orange;
+      default:
+        return theme.colorScheme.primary;
     }
   }
 
@@ -120,23 +145,43 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final hasUnread = _items.any((e) => !e.isRead);
+
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Thông báo'),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Thông báo',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.done_all),
+            icon: Icon(
+              Icons.done_all_rounded,
+              color: hasUnread
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant.withOpacity(0.4),
+            ),
             tooltip: 'Đánh dấu tất cả đã đọc',
             onPressed: hasUnread ? _markAll : null,
           ),
+          const SizedBox(width: 4),
         ],
       ),
-      body: _buildBody(),
+      body: _buildBody(theme),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(ThemeData theme) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
@@ -145,9 +190,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error!, textAlign: TextAlign.center),
+              Icon(Icons.error_outline_rounded, size: 48, color: theme.colorScheme.error),
               const SizedBox(height: 12),
-              ElevatedButton(onPressed: _load, child: const Text('Thử lại')),
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton.tonal(onPressed: _load, child: const Text('Thử lại')),
             ],
           ),
         ),
@@ -156,48 +203,110 @@ class _NotificationScreenState extends State<NotificationScreen> {
     return RefreshIndicator(
       onRefresh: () => _load(showSpinner: false),
       child: _items.isEmpty
-          ? ListView(
-        children: const [
-          SizedBox(height: 200),
-          Center(child: Text('Chưa có thông báo nào')),
-        ],
+          ? LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.notifications_off_outlined,
+                    size: 64,
+                    color: theme.colorScheme.outline.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Chưa có thông báo nào',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       )
-          : ListView.separated(
+          : ListView.builder(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         itemCount: _items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (context, i) {
           final n = _items[i];
-          return ListTile(
-            isThreeLine: true,
-            tileColor: n.isRead
-                ? null
-                : Theme.of(context)
-                .colorScheme
-                .primary
-                .withValues(alpha: 0.06),
-            leading: CircleAvatar(child: Icon(_icon(n.type))),
-            title: Text(
-              n.title,
-              style: TextStyle(
-                  fontWeight:
-                  n.isRead ? FontWeight.normal : FontWeight.bold),
+          final color = _iconColor(theme, n.type);
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: n.isRead
+                  ? theme.colorScheme.surface
+                  : theme.colorScheme.primaryContainer.withOpacity(0.25),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: n.isRead
+                    ? theme.colorScheme.outlineVariant.withOpacity(0.3)
+                    : theme.colorScheme.primary.withOpacity(0.2),
+              ),
             ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(n.message),
-                const SizedBox(height: 4),
-                Text(
-                  _timeAgo(n.createdAt),
-                  style:
-                  const TextStyle(color: Colors.grey, fontSize: 12),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 6,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              leading: CircleAvatar(
+                backgroundColor: color.withOpacity(0.12),
+                child: Icon(_icon(n.type), color: color, size: 22),
+              ),
+              title: Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  n.title,
+                  style: TextStyle(
+                    fontWeight: n.isRead ? FontWeight.w600 : FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 15,
+                  ),
                 ),
-              ],
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    n.message,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 13,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _timeAgo(n.createdAt),
+                    style: TextStyle(
+                      color: theme.colorScheme.outline,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+              trailing: n.isRead
+                  ? null
+                  : Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              onTap: () => _open(n),
             ),
-            trailing: n.isRead
-                ? null
-                : const Icon(Icons.circle, size: 10, color: Colors.indigo),
-            onTap: () => _open(n),
           );
         },
       ),
