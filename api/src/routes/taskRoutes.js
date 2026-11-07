@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const c = require('../controllers/taskController');
+const emailLogs = require('../controllers/emailLogController');
 const auth = require('../middleware/authMiddleware');
 const { loadTask } = require('../middleware/permissionMiddleware');
 
@@ -10,6 +11,7 @@ router.post('/', c.create);
 
 router.use('/:id/assignees', require('./assignmentRoutes'));
 router.use('/:id/shares', require('./taskShareRoutes'));
+router.get('/:id/email-logs', loadTask('manage'), emailLogs.listByTask);
 
 router.get('/:id', loadTask('view'), c.detail);
 router.put('/:id', loadTask('edit'), c.update);

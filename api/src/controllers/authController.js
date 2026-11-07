@@ -47,3 +47,35 @@ exports.login = async (req, res) => {
 };
 
 exports.me = (req, res) => res.json(publicUser(req.user));
+// PUT /auth/profile  { fullName }
+exports.updateProfile = async (req, res) => {
+  const fullName = String((req.body || {}).fullName ?? '').trim();
+  if (!fullName) return res.status(400).json({ message: 'Họ tên không được để trống' });
+  if (fullName.length > 100) {
+    return res.status(400).json({ message: 'Họ tên tối đa 100 ký tự' });
+  }
+  await User.updateOne({ _id: req.user._id }, { $set: { fullName } });
+  req.user.fullName = fullName;
+  res.json(publicUser(req.user));
+};
+
+// PUT /auth/change-password  { currentPassword, newPassword }
+exports.changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: 'Nhập mật khẩu hiện tại và mật khẩu mới' });
+  }
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({ message: 'Mật khẩu mới tối thiểu 6 ký tự' });
+  }
+  if (currentPassword === newPassword) {
+    return res.status(400).json({ message: 'Mật khẩu mới phải khác mật khẩu hiện tại' });
+  }
+  const user = await User.findById(req.user._id);
+  if (!user || !(await bcrypt.compare(String(currentPassword), user.passwordHash))) {
+    return res.status(400).json({ message: 'Mật khẩu hiện tại không đúng' });
+  }
+  user.passwordHash = await bcrypt.hash(String(newPassword), 10);
+  await user.save();
+  res.json({ message: 'Đã đổi mật khẩu' });
+};

@@ -71,6 +71,7 @@ exports.add = async (req, res) => {
     actor: req.user,
     task: req.task,
     type: 'task_shared',
+    emailType: 'task_shared',
     title: 'Công việc được chia sẻ với bạn',
     message: `${req.user.fullName} đã chia sẻ công việc "${req.task.title}" với bạn (${permText(permission)})`,
   });
